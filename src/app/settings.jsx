@@ -18,7 +18,6 @@ import {
     Heart,
     Save,
 } from "lucide-react-native";
-import * as SQLite from "expo-sqlite";
 import { AudioModule } from "expo-audio";
 
 import Screen from "../components/ui/Screen";
@@ -27,6 +26,7 @@ import Button from "../components/ui/Button";
 import Input from "../components/ui/Input";
 import Chip from "../components/ui/Chip";
 import { tokens } from "../styles/tokens";
+import { useApp } from "../hooks/useApp";
 
 const COLORS = tokens.colors;
 
@@ -59,78 +59,40 @@ const INTERESTS = [
 
 export default function Settings() {
     const router = useRouter();
+    const { user, companion, saveProfile: persistProfile, resetApp } = useApp();
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [deleting, setDeleting] = useState(false);
 
-    const [name, setName] = useState("");
-    const [age, setAge] = useState("");
-    const [gender, setGender] = useState("unspecified");
-    const [language, setLanguage] = useState("es");
-    const [interests, setInterests] = useState([]);
+    const [name, setName] = useState(user?.name ?? "");
+    const [age, setAge] = useState(String(user?.age ?? ""));
+    const [gender, setGender] = useState(user?.gender ?? "unspecified");
+    const [language, setLanguage] = useState(user?.language ?? "es");
+    const [interests, setInterests] = useState(user?.interests ?? []);
 
-    const [friendName, setFriendName] = useState("");
+    const friendName = companion?.name ?? "";
     const [micGranted, setMicGranted] = useState(false);
 
     useEffect(() => {
         let active = true;
-
-        async function loadSettings() {
-            let db;
-
-            try {
-                db = await SQLite.openDatabaseAsync("cerca.db");
-
-                const profile = await db.getFirstAsync(
-                    "SELECT * FROM user_profile WHERE id = 1"
-                );
-
-                const companion = await db.getFirstAsync(
-                    "SELECT name FROM companion_profile WHERE id = 1"
-                );
-
-                const permission =
-                    await AudioModule.getRecordingPermissionsAsync();
-
-                if (!active) return;
-
-                if (!profile) {
-                    router.replace("/onboarding");
-                    return;
-                }
-
-                setName(profile.name);
-                setAge(String(profile.age));
-                setGender(profile.gender);
-                setLanguage(profile.language);
-                setInterests(JSON.parse(profile.interests || "[]"));
-
-                setFriendName(companion?.name || "");
-                setMicGranted(permission.granted);
-
-            } catch (error) {
-                console.error("Error cargando configuración:", error);
-
-                if (active) {
-                    Alert.alert(
-                        "Error",
-                        "No pudimos cargar la configuración."
-                    );
-                }
-            } finally {
-                if (db) await db.closeAsync();
-
-                if (active) setLoading(false);
-            }
-        }
-
-        loadSettings();
-
-        return () => {
-            active = false;
-        };
+        AudioModule.getRecordingPermissionsAsync()
+            .then((permission) => {
+                if (active) setMicGranted(permission.granted);
+            })
+            .catch((error) => console.error("Error consultando micrófono:", error))
+            .finally(() => { if (active) setLoading(false); });
+        return () => { active = false; };
     }, []);
+
+    useEffect(() => {
+        if (!user) return;
+        setName(user.name);
+        setAge(String(user.age));
+        setGender(user.gender);
+        setLanguage(user.language);
+        setInterests(user.interests);
+    }, [user]);
 
     const goBack = () => {
         if (router.canGoBack()) {
@@ -179,29 +141,12 @@ export default function Settings() {
             return;
         }
 
-        let db;
-
         try {
             setSaving(true);
 
-            db = await SQLite.openDatabaseAsync("cerca.db");
-
-            await db.runAsync(
-                `UPDATE user_profile
-                 SET name = ?,
-                     age = ?,
-                     gender = ?,
-                     language = ?,
-                     interests = ?
-                 WHERE id = 1`,
-                [
-                    cleanName,
-                    parsedAge,
-                    gender,
-                    language,
-                    JSON.stringify(interests),
-                ]
-            );
+            await persistProfile({
+                name: cleanName, age: parsedAge, gender, language, interests
+            });
 
             Alert.alert(
                 "Perfil actualizado",
@@ -215,7 +160,6 @@ export default function Settings() {
                 "Intenta nuevamente."
             );
         } finally {
-            if (db) await db.closeAsync();
             setSaving(false);
         }
     };
@@ -276,43 +220,10 @@ export default function Settings() {
     const confirmDelete = async () => {
         if (deleting) return;
 
-        let db;
-
         try {
             setDeleting(true);
 
-            db = await SQLite.openDatabaseAsync("cerca.db");
-
-            // Borra los registros de las tablas actuales,
-            // manteniendo la estructura de la base de datos.
-            const tableNames = [
-                "app_state",
-                "companion_profile",
-                "companion_preferences",
-                "user_profile",
-            ];
-
-            await db.withExclusiveTransactionAsync(async (txn) => {
-                const existingTables = await txn.getAllAsync(
-                    `SELECT name
-                     FROM sqlite_master
-                     WHERE type = 'table'`
-                );
-
-                const existingNames = new Set(
-                    existingTables.map((table) => table.name)
-                );
-
-                for (const table of tableNames) {
-                    if (existingNames.has(table)) {
-                        await txn.execAsync(`DELETE FROM "${table}"`);
-                    }
-                }
-            });
-
-            await db.closeAsync();
-            db = null;
-
+            await resetApp();
             router.replace("/");
         } catch (error) {
             console.error("Error eliminando datos:", error);
@@ -322,7 +233,6 @@ export default function Settings() {
                 "Intenta nuevamente."
             );
         } finally {
-            if (db) await db.closeAsync();
             setDeleting(false);
         }
     };

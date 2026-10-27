@@ -1,7 +1,6 @@
 
 import { useRouter } from "expo-router";
 import * as Speech from "expo-speech";
-import * as SQLite from "expo-sqlite";
 import {
     ArrowRight,
     Heart,
@@ -21,15 +20,14 @@ import Button from "../../components/ui/Button";
 import Screen from "../../components/ui/Screen";
 import TextApp from "../../components/ui/TextApp";
 import { tokens } from "../../styles/tokens";
+import { useApp } from "../../hooks/useApp";
 
 const COLORS = tokens.colors;
 
 export default function FirstMeeting() {
     const router = useRouter();
 
-    const [friend, setFriend] = useState(null);
-    const [user, setUser] = useState(null);
-    const [loading, setLoading] = useState(true);
+    const { companion: friend, user, completeFirstMeeting } = useApp();
     const [speaking, setSpeaking] = useState(false);
     const [continuing, setContinuing] = useState(false);
 
@@ -38,8 +36,6 @@ export default function FirstMeeting() {
 
     useEffect(() => {
         mounted.current = true;
-
-        loadProfiles();
 
         return () => {
             mounted.current = false;
@@ -76,51 +72,6 @@ export default function FirstMeeting() {
 
         return () => animation.stop();
     }, [speaking, pulse]);
-
-    const loadProfiles = async () => {
-        try {
-            setLoading(true);
-
-            const db = await SQLite.openDatabaseAsync("cerca.db");
-
-            const companion = await db.getFirstAsync(
-                "SELECT * FROM companion_profile WHERE id = 1"
-            );
-
-            const profile = await db.getFirstAsync(
-                "SELECT * FROM user_profile WHERE id = 1"
-            );
-
-            if (!companion || !profile) {
-                router.replace("/onboarding");
-                return;
-            }
-
-            if (!mounted.current) return;
-
-            setFriend({
-                name: companion.name,
-                gender: companion.gender,
-                humor: companion.humor,
-                communicationStyle: companion.communication_style,
-                interests: JSON.parse(companion.interests),
-            });
-
-            setUser({
-                name: profile.name,
-                language: profile.language,
-            });
-        } catch (error) {
-            console.error("Error cargando perfiles:", error);
-
-            Alert.alert(
-                "No pudimos continuar",
-                "Ocurrió un problema al cargar tu compañero."
-            );
-        } finally {
-            if (mounted.current) setLoading(false);
-        }
-    };
 
     const isEnglish = user?.language === "en";
 
@@ -181,25 +132,7 @@ export default function FirstMeeting() {
 
             await Speech.stop();
 
-            const db = await SQLite.openDatabaseAsync("cerca.db");
-
-            await db.execAsync(`
-                CREATE TABLE IF NOT EXISTS app_state (
-                    id INTEGER PRIMARY KEY NOT NULL,
-                    first_meeting_completed INTEGER NOT NULL DEFAULT 0
-                );
-            `);
-
-            await db.runAsync(
-                `INSERT INTO app_state (
-                    id,
-                    first_meeting_completed
-                )
-                VALUES (1, 1)
-                ON CONFLICT(id) DO UPDATE SET
-                    first_meeting_completed = 1`
-            );
-
+            await completeFirstMeeting();
             router.replace("/home");
         } catch (error) {
             console.error("Error finalizando presentación:", error);
@@ -212,7 +145,7 @@ export default function FirstMeeting() {
         }
     };
 
-    if (loading || !friend || !user) {
+    if (!friend || !user) {
         return (
             <Screen>
                 <View style={styles.loading}>

@@ -1,5 +1,6 @@
 import { View, StyleSheet } from "react-native";
-import { useRouter } from "expo-router";
+import { Redirect, useRouter } from "expo-router";
+import { useApp } from "../hooks/useApp";
 import { ArrowRight, Heart, Sparkles, LockKeyhole } from "lucide-react-native";
 
 import Screen from "../components/ui/Screen";
@@ -9,6 +10,12 @@ import { tokens } from "../styles/tokens";
 
 export default function Index() {
     const router = useRouter();
+    const { stage } = useApp();
+
+    if (stage !== "welcome") {
+        const target = stage === "home" ? "/home" : `/${stage}`;
+        return <Redirect href={target} />;
+    }
 
     return (
         <Screen>
