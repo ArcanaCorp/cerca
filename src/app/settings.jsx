@@ -59,7 +59,7 @@ const INTERESTS = [
 
 export default function Settings() {
     const router = useRouter();
-    const { user, companion, saveProfile, resetApp } = useApp();
+    const { user, companion, saveProfile: persistProfile, resetApp } = useApp();
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -144,7 +144,7 @@ export default function Settings() {
         try {
             setSaving(true);
 
-            await saveProfile({
+            await persistProfile({
                 name: cleanName, age: parsedAge, gender, language, interests
             });
 
