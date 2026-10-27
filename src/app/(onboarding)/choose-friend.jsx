@@ -1,5 +1,4 @@
 import { useRouter } from "expo-router";
-import * as SQLite from "expo-sqlite";
 import { ArrowLeft, ArrowRight, Heart, Shuffle, UserRound, UsersRound } from "lucide-react-native";
 import { useState } from "react";
 import { Alert, StyleSheet, View } from "react-native";
@@ -9,6 +8,7 @@ import Chip from "../../components/ui/Chip";
 import Screen from "../../components/ui/Screen";
 import TextApp from "../../components/ui/TextApp";
 import { tokens } from "../../styles/tokens";
+import { useApp } from "../../hooks/useApp";
 
 const COLORS = tokens.colors;
 
@@ -35,8 +35,9 @@ const FRIEND_OPTIONS = [
 
 export default function ChooseFriend() {
     const router = useRouter();
+    const { chooseFriend, preference } = useApp();
 
-    const [selected, setSelected] = useState(null);
+    const [selected, setSelected] = useState(preference);
     const [loading, setLoading] = useState(false);
 
     const handleContinue = async () => {
@@ -45,23 +46,7 @@ export default function ChooseFriend() {
         try {
             setLoading(true);
 
-            const db = await SQLite.openDatabaseAsync("cerca.db");
-
-            await db.execAsync(`
-                CREATE TABLE IF NOT EXISTS companion_preferences (
-                    id INTEGER PRIMARY KEY NOT NULL,
-                    preference TEXT NOT NULL
-                );
-            `);
-
-            await db.runAsync(
-                `INSERT INTO companion_preferences (id, preference)
-                 VALUES (1, ?)
-                 ON CONFLICT(id) DO UPDATE SET
-                    preference = excluded.preference`,
-                [selected]
-            );
-
+            await chooseFriend(selected);
             router.replace("/creating-friend");
 
         } catch (error) {

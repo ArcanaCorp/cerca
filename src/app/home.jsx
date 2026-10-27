@@ -6,12 +6,12 @@ import { Blobatar } from "@blobatar/react-native";
 
 import { AudioModule, RecordingPresets, setAudioModeAsync, useAudioRecorder, useAudioRecorderState } from "expo-audio";
 
-import * as SQLite from "expo-sqlite";
 
 import Screen from "../components/ui/Screen";
 import TextApp from "../components/ui/TextApp";
 import Button from "../components/ui/Button";
 import { tokens } from "../styles/tokens";
+import { useApp } from "../hooks/useApp";
 
 const COLORS = tokens.colors;
 
@@ -19,8 +19,7 @@ export default function Home() {
     const router = useRouter();
     const { width } = useWindowDimensions();
 
-    const [friend, setFriend] = useState(null);
-    const [loading, setLoading] = useState(true);
+    const { companion: friend } = useApp();
     const [busy, setBusy] = useState(false);
     const [recordingCompleted, setRecordingCompleted] = useState(false);
 
@@ -34,54 +33,13 @@ export default function Home() {
 
     const avatarSize = Math.min(width - 80, 300);
 
-    // Cargar compañero desde SQLite
-    useEffect(() => {
-        let active = true;
-
-        async function loadFriend() {
-            try {
-                const db = await SQLite.openDatabaseAsync("cerca.db");
-
-                const companion = await db.getFirstAsync(
-                    "SELECT * FROM companion_profile WHERE id = 1"
-                );
-
-                if (!active) return;
-
-                if (!companion) {
-                    router.replace("/onboarding");
-                    return;
-                }
-
-                setFriend({
-                    name: companion.name,
-                    gender: companion.gender,
-                });
-            } catch (error) {
-                console.error("Error cargando compañero:", error);
-
-                if (active) {
-                    Alert.alert(
-                        "Error",
-                        "No pudimos cargar tu compañero."
-                    );
-                }
-            } finally {
-                if (active) setLoading(false);
-            }
+    // Mantener la grabación contenida en el ciclo de vida de Home.
+    useEffect(() => () => {
+        if (recordingRef.current) {
+            recorder.stop().catch(console.error);
+            recordingRef.current = false;
         }
-
-        loadFriend();
-
-        return () => {
-            active = false;
-
-            if (recordingRef.current) {
-                recorder.stop().catch(console.error);
-                recordingRef.current = false;
-            }
-        };
-    }, [router, recorder]);
+    }, [recorder]);
 
     // Animación suave del avatar
     useEffect(() => {
@@ -173,7 +131,7 @@ export default function Home() {
         }
     };
 
-    if (loading || !friend) {
+    if (!friend) {
         return (
             <Screen>
                 <View style={styles.loading}>

@@ -1,5 +1,4 @@
 import { useRouter } from "expo-router";
-import * as SQLite from "expo-sqlite";
 import { ArrowLeft } from "lucide-react-native";
 import { useState } from "react";
 import { Alert, StyleSheet, View } from "react-native";
@@ -11,11 +10,13 @@ import Screen from "../../components/ui/Screen";
 import TextApp from "../../components/ui/TextApp";
 import { GENDERS, INTERESTS, languageApp } from "../../constants/app";
 import { tokens } from "../../styles/tokens";
+import { useApp } from "../../hooks/useApp";
 
 const COLORS = tokens.colors;
 
 export default function Onboarding() {
     const router = useRouter();
+    const { saveProfile } = useApp();
 
     const [name, setName] = useState("");
     const [age, setAge] = useState("");
@@ -60,33 +61,7 @@ export default function Onboarding() {
         try {
             setLoading(true);
 
-            const db = await SQLite.openDatabaseAsync("cerca.db");
-
-            await db.execAsync(`
-                CREATE TABLE IF NOT EXISTS user_profile (
-                    id INTEGER PRIMARY KEY NOT NULL,
-                    name TEXT NOT NULL,
-                    age INTEGER NOT NULL,
-                    gender TEXT NOT NULL,
-                    language TEXT NOT NULL,
-                    interests TEXT NOT NULL
-                );
-            `);
-
-            await db.runAsync(
-                `INSERT OR REPLACE INTO user_profile
-                (id, name, age, gender, language, interests)
-                VALUES (?, ?, ?, ?, ?, ?)`,
-                [
-                    1,
-                    name.trim(),
-                    parsedAge,
-                    gender,
-                    language,
-                    JSON.stringify(interests),
-                ]
-            );
-
+            await saveProfile({ name: name.trim(), age: parsedAge, gender, language, interests });
             router.push("/choose-friend");
         } catch (error) {
             console.error("Error guardando perfil:", error);

@@ -1,6 +1,5 @@
 
 import { useRouter } from "expo-router";
-import * as SQLite from "expo-sqlite";
 import {
     ArrowRight,
     Check,
@@ -19,111 +18,13 @@ import Button from "../../components/ui/Button";
 import Screen from "../../components/ui/Screen";
 import TextApp from "../../components/ui/TextApp";
 import { tokens } from "../../styles/tokens";
+import { useApp } from "../../hooks/useApp";
 
 const COLORS = tokens.colors;
 
-const NAMES = {
-    male: [
-        "Leo",
-        "Nico",
-        "Mateo",
-        "Lucas",
-        "Bruno",
-        "Gael",
-        "Dante",
-        "Thiago",
-    ],
-    female: [
-        "Luna",
-        "Mía",
-        "Alma",
-        "Vera",
-        "Emma",
-        "Clara",
-        "Sofía",
-        "Nina",
-    ],
-};
-
-const OWN_INTERESTS = [
-    "Fotografía",
-    "Astronomía",
-    "Naturaleza",
-    "Música",
-    "Historia",
-    "Cine",
-    "Arte",
-    "Viajes",
-    "Cocina",
-    "Lectura",
-    "Animales",
-    "Videojuegos",
-    "Deportes",
-    "Tecnología",
-    "Filosofía",
-];
-
-const HUMOR_STYLES = [
-    "Espontáneo",
-    "Ingenioso",
-    "Tranquilo",
-    "Juguetón",
-];
-
-const pick = (array) =>
-    array[Math.floor(Math.random() * array.length)];
-
-const score = () =>
-    Math.floor(Math.random() * 51) + 30;
-
-function generateFriend(preference, userInterests) {
-    const gender =
-        preference === "random"
-            ? pick(["male", "female"])
-            : preference;
-
-    const personality = {
-        openness: score(),
-        conscientiousness: score(),
-        extraversion: score(),
-        agreeableness: score(),
-        neuroticism: score(),
-    };
-
-    const name = pick(NAMES[gender]);
-
-    // Un interés compartido es posible, pero no obligatorio.
-    const sharedInterest =
-        userInterests.length > 0 && Math.random() > 0.35
-            ? pick(userInterests)
-            : null;
-
-    const independentInterests = [...OWN_INTERESTS]
-        .filter((interest) => interest !== sharedInterest)
-        .sort(() => Math.random() - 0.5)
-        .slice(0, sharedInterest ? 2 : 3);
-
-    const interests = sharedInterest
-        ? [sharedInterest, ...independentInterests]
-        : independentInterests;
-
-    const communicationStyle =
-        personality.extraversion >= 60
-            ? "Expresivo y conversador"
-            : "Tranquilo y observador";
-
-    return {
-        name,
-        gender,
-        personality,
-        interests,
-        humor: pick(HUMOR_STYLES),
-        communicationStyle,
-    };
-}
-
 export default function CreatingFriend() {
     const router = useRouter();
+    const { createCompanion } = useApp();
 
     const [status, setStatus] = useState("creating");
     const [friend, setFriend] = useState(null);
@@ -154,132 +55,27 @@ export default function CreatingFriend() {
         return () => animation.stop();
     }, [pulse]);
 
-    // Crear y guardar la identidad una sola vez.
+    // Recupera la misma identidad al regresar o reiniciar la aplicación.
     useEffect(() => {
         let active = true;
-
         async function prepareFriend() {
             try {
                 setStatus("creating");
                 setErrorMessage("");
-
-                const db = await SQLite.openDatabaseAsync("cerca.db");
-
-                await db.execAsync(`
-                    CREATE TABLE IF NOT EXISTS companion_profile (
-                        id INTEGER PRIMARY KEY NOT NULL,
-                        name TEXT NOT NULL,
-                        gender TEXT NOT NULL,
-                        personality TEXT NOT NULL,
-                        interests TEXT NOT NULL,
-                        humor TEXT NOT NULL,
-                        communication_style TEXT NOT NULL,
-                        created_at TEXT NOT NULL
-                    );
-                `);
-
-                // Si ya existe, conservamos su identidad.
-                const existing = await db.getFirstAsync(
-                    "SELECT * FROM companion_profile WHERE id = 1"
-                );
-
-                if (existing) {
-                    if (!active) return;
-
-                    setFriend({
-                        name: existing.name,
-                        gender: existing.gender,
-                        personality: JSON.parse(existing.personality),
-                        interests: JSON.parse(existing.interests),
-                        humor: existing.humor,
-                        communicationStyle: existing.communication_style,
-                    });
-
-                    setStatus("ready");
-                    return;
-                }
-
-                const preference = await db.getFirstAsync(
-                    "SELECT preference FROM companion_preferences WHERE id = 1"
-                );
-
-                const user = await db.getFirstAsync(
-                    "SELECT interests FROM user_profile WHERE id = 1"
-                );
-
-                if (!preference || !user) {
-                    throw new Error(
-                        "Completa el onboarding antes de crear a tu amigo."
-                    );
-                }
-
-                const userInterests = JSON.parse(user.interests);
-
-                const generated = generateFriend(
-                    preference.preference,
-                    userInterests
-                );
-
-                await db.runAsync(
-                    `INSERT OR IGNORE INTO companion_profile (
-                        id,
-                        name,
-                        gender,
-                        personality,
-                        interests,
-                        humor,
-                        communication_style,
-                        created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-                    [
-                        1,
-                        generated.name,
-                        generated.gender,
-                        JSON.stringify(generated.personality),
-                        JSON.stringify(generated.interests),
-                        generated.humor,
-                        generated.communicationStyle,
-                        new Date().toISOString(),
-                    ]
-                );
-
-                // Leer siempre la identidad que realmente quedó guardada.
-                const saved = await db.getFirstAsync(
-                    "SELECT * FROM companion_profile WHERE id = 1"
-                );
-
-                if (!saved) {
-                    throw new Error("No se pudo guardar la identidad.");
-                }
-
+                const saved = await createCompanion();
                 if (!active) return;
-
-                setFriend({
-                    name: saved.name,
-                    gender: saved.gender,
-                    personality: JSON.parse(saved.personality),
-                    interests: JSON.parse(saved.interests),
-                    humor: saved.humor,
-                    communicationStyle: saved.communication_style,
-                });
-
+                setFriend(saved);
                 setStatus("ready");
             } catch (error) {
                 console.error("Error creando compañero:", error);
-
                 if (!active) return;
-
                 setErrorMessage(error.message);
                 setStatus("error");
             }
         }
-
         prepareFriend();
-
-        return () => {
-            active = false;
-        };
-    }, [attempt]);
+        return () => { active = false; };
+    }, [attempt, createCompanion]);
 
     const isReady = status === "ready";
 
