@@ -16,6 +16,8 @@
    EXPO_PUBLIC_CERCA_API_URL=https://tu-api.vercel.app
    EXPO_PUBLIC_CERCA_LIVE_ENABLED=true
    ```
+**EAS Cloud:** `.env.local` es para pruebas locales. Si compilas con EAS, configura también `EXPO_PUBLIC_CERCA_API_URL` y `EXPO_PUBLIC_CERCA_LIVE_ENABLED` en las variables del proyecto Expo/EAS para el entorno del build. Nunca configures la clave privada de Gemini en EAS cliente.
+
 4. Ejecuta `npx expo install react-native-audio-api` si necesitas sincronizar versiones locales. Instala `npx expo install expo-dev-client` solo para usar el perfil `development`.
 5. Para probar una APK autónoma (sin Android Studio), ejecuta `npx eas-cli@latest build --platform android --profile preview`. Para desarrollo con Metro, tras instalar `expo-dev-client`, usa `npx eas-cli@latest build --platform android --profile development`. No basta Expo Go.
 6. En Home pulsa una vez el micrófono, concede consentimiento específico para Gemini y habla naturalmente. Pulsa otra vez para finalizar. Prueba inicialmente con audífonos para reducir el eco.
