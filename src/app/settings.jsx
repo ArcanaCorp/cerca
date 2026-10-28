@@ -27,7 +27,12 @@ import Input from "../components/ui/Input";
 import Chip from "../components/ui/Chip";
 import { tokens } from "../styles/tokens";
 import { useApp } from "../hooks/useApp";
-import { getVoiceConsent, setVoiceConsent } from "../services/profile.service";
+import {
+    getVoiceConsent,
+    setVoiceConsent,
+    getCompanionConsent,
+    setCompanionConsent,
+} from "../services/profile.service";
 import { clearConversationMemory, getMemoryStats } from "../services/memory.service";
 
 const COLORS = tokens.colors;
@@ -76,6 +81,7 @@ export default function Settings() {
     const friendName = companion?.name ?? "";
     const [micGranted, setMicGranted] = useState(false);
     const [voiceConsent, setVoiceConsentState] = useState(false);
+    const [companionConsent, setCompanionConsentState] = useState(false);
     const [memoryStats, setMemoryStats] = useState({ turns: 0, facts: 0 });
     const [clearingMemory, setClearingMemory] = useState(false);
 
@@ -85,11 +91,13 @@ export default function Settings() {
             AudioModule.getRecordingPermissionsAsync(),
             getVoiceConsent(),
             getMemoryStats(),
+            getCompanionConsent(),
         ])
-            .then(([permission, consent, stats]) => {
+            .then(([permission, consent, stats, friendConsent]) => {
                 if (!active) return;
                 setMicGranted(permission.granted);
                 setVoiceConsentState(consent);
+                setCompanionConsentState(friendConsent);
                 setMemoryStats(stats);
             })
             .catch((error) => console.error("Error cargando privacidad:", error))
@@ -235,6 +243,16 @@ export default function Settings() {
                 },
             ]
         );
+    };
+
+    const revokeCompanionConsent = async () => {
+        try {
+            await setCompanionConsent(false);
+            setCompanionConsentState(false);
+            Alert.alert("Autorización revocada", "CERCA no solicitará generar identidades nuevas sin pedir autorización.");
+        } catch (error) {
+            Alert.alert("Error", "No pudimos actualizar tu autorización.");
+        }
     };
 
     const revokeVoiceConsent = async () => {
@@ -589,6 +607,15 @@ export default function Settings() {
                             fullWidth
                             onPress={forgetConversation}
                         />
+
+                        {companionConsent && (
+                            <Button
+                                variant="ghost"
+                                label="Revocar autorización de creación con IA"
+                                fullWidth
+                                onPress={revokeCompanionConsent}
+                            />
+                        )}
 
                         {voiceConsent && (
                             <Button

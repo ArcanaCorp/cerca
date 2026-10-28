@@ -51,7 +51,8 @@ export function getDatabase() {
 
                 CREATE TABLE IF NOT EXISTS privacy_preferences (
                     id INTEGER PRIMARY KEY NOT NULL,
-                    cloud_voice_consent INTEGER NOT NULL DEFAULT 0
+                    cloud_voice_consent INTEGER NOT NULL DEFAULT 0,
+                    cloud_companion_consent INTEGER NOT NULL DEFAULT 0
                 );
 
                 CREATE TABLE IF NOT EXISTS app_state (
@@ -59,6 +60,14 @@ export function getDatabase() {
                     first_meeting_completed INTEGER NOT NULL DEFAULT 0
                 );
             `);
+
+            // Migración compatible con instalaciones previas de CERCA.
+            const columns = await db.getAllAsync("PRAGMA table_info(privacy_preferences)");
+            if (!columns.some(column => column.name === "cloud_companion_consent")) {
+                await db.execAsync(
+                    "ALTER TABLE privacy_preferences ADD COLUMN cloud_companion_consent INTEGER NOT NULL DEFAULT 0"
+                );
+            }
 
             return db;
         })().catch((error) => {

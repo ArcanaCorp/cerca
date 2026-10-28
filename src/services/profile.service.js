@@ -134,3 +134,21 @@ export async function setVoiceConsent(granted) {
         [granted ? 1 : 0]
     );
 }
+
+export async function getCompanionConsent() {
+    const db = await getDatabase();
+    const row = await db.getFirstAsync(
+        "SELECT cloud_companion_consent FROM privacy_preferences WHERE id = 1"
+    );
+    return row?.cloud_companion_consent === 1;
+}
+
+export async function setCompanionConsent(granted) {
+    const db = await getDatabase();
+    await db.runAsync(
+        `INSERT INTO privacy_preferences (id, cloud_companion_consent)
+         VALUES (1, ?)
+         ON CONFLICT(id) DO UPDATE SET cloud_companion_consent = excluded.cloud_companion_consent`,
+        [granted ? 1 : 0]
+    );
+}
