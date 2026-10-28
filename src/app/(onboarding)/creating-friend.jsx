@@ -19,6 +19,7 @@ import Screen from "../../components/ui/Screen";
 import TextApp from "../../components/ui/TextApp";
 import { tokens } from "../../styles/tokens";
 import { useApp } from "../../hooks/useApp";
+import { getCompanionConsent, setCompanionConsent } from "../../services/profile.service";
 
 const COLORS = tokens.colors;
 
@@ -26,7 +27,7 @@ export default function CreatingFriend() {
     const router = useRouter();
     const { createCompanion } = useApp();
 
-    const [status, setStatus] = useState("creating");
+    const [status, setStatus] = useState("checking");
     const [friend, setFriend] = useState(null);
     const [errorMessage, setErrorMessage] = useState("");
     const [attempt, setAttempt] = useState(0);
@@ -60,8 +61,15 @@ export default function CreatingFriend() {
         let active = true;
         async function prepareFriend() {
             try {
-                setStatus("creating");
+                setStatus("checking");
                 setErrorMessage("");
+                const consent = await getCompanionConsent();
+                if (!active) return;
+                if (!consent) {
+                    setStatus("permission");
+                    return;
+                }
+                setStatus("creating");
                 const saved = await createCompanion();
                 if (!active) return;
                 setFriend(saved);
@@ -78,6 +86,15 @@ export default function CreatingFriend() {
     }, [attempt, createCompanion]);
 
     const isReady = status === "ready";
+    const grantPermission = async () => {
+        try {
+            await setCompanionConsent(true);
+            setAttempt(value => value + 1);
+        } catch (error) {
+            setErrorMessage("No pudimos guardar tu autorización.");
+            setStatus("error");
+        }
+    };
 
     return (
         <Screen>
@@ -145,7 +162,7 @@ export default function CreatingFriend() {
                         <TextApp size="sm" weight="medium">
                             {isReady
                                 ? "Listo para conocerte"
-                                : "Preparando tu conexión"}
+                                : status === "permission" ? "Tu decisión importa" : "Preparando tu conexión"}
                         </TextApp>
                     </View>
                 </View>
@@ -270,6 +287,33 @@ export default function CreatingFriend() {
                         />
                     )}
 
+                    {status === "permission" && (
+                        <View style={styles.errorCard}>
+                            <TextApp size="lg" weight="semibold">
+                                Crear una amistad con IA
+                            </TextApp>
+                            <TextApp color="muted">
+                                Para inventar una identidad única, enviaremos tu nombre,
+                                idioma e intereses a nuestro servicio de IA. El resultado
+                                se guardará localmente. Si prefieres no compartir esos
+                                datos, puedes regresar sin crear al compañero.
+                            </TextApp>
+                            <Button
+                                variant="primary"
+                                label="Autorizar y crear mi amigo"
+                                size="lg"
+                                fullWidth
+                                onPress={grantPermission}
+                            />
+                            <Button
+                                variant="ghost"
+                                label="Ahora no"
+                                fullWidth
+                                onPress={() => router.replace("/choose-friend")}
+                            />
+                        </View>
+                    )}
+
                     {status === "error" && (
                         <>
                             <Button
@@ -293,7 +337,7 @@ export default function CreatingFriend() {
                         </>
                     )}
 
-                    {status === "creating" && (
+                    {(status === "creating" || status === "checking") && (
                         <TextApp
                             color="muted"
                             align="center"

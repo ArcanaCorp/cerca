@@ -143,7 +143,7 @@ export default function Onboarding() {
                 {/* Continuar */}
                 <View style={styles.footer}>
                     <Button label={loading ? "Guardando..." : "Continuar"} size="lg" disabled={loading} onPress={handleContinue}/>
-                    <TextApp size="sm" color="muted" align="center">Tus datos personales se guardan en este dispositivo.</TextApp>
+                    <TextApp size="sm" color="muted" align="center">Tu perfil se guarda aquí; generar un compañero con IA requiere autorización aparte.</TextApp>
                 </View>
 
             </View>
