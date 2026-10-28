@@ -35,6 +35,25 @@ export function getDatabase() {
                     created_at TEXT NOT NULL
                 );
 
+                CREATE TABLE IF NOT EXISTS conversation_turns (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+                    content TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS memory_facts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    fact TEXT NOT NULL UNIQUE,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS privacy_preferences (
+                    id INTEGER PRIMARY KEY NOT NULL,
+                    cloud_voice_consent INTEGER NOT NULL DEFAULT 0
+                );
+
                 CREATE TABLE IF NOT EXISTS app_state (
                     id INTEGER PRIMARY KEY NOT NULL,
                     first_meeting_completed INTEGER NOT NULL DEFAULT 0
