@@ -1,4 +1,5 @@
 import { getDatabase } from "../database/sqlite";
+import { isNonConversationalReply } from "../utils/reply-quality";
 
 const MAX_HISTORY = 12;
 const MAX_MEMORIES = 25;
@@ -18,7 +19,9 @@ export async function getConversationContext() {
     ]);
 
     return {
-        history: turns.reverse().map((turn) => ({
+        history: turns.reverse().filter((turn) => (
+            turn.role !== "assistant" || !isNonConversationalReply(turn.content)
+        )).map((turn) => ({
             role: turn.role,
             content: turn.content,
         })),
@@ -27,6 +30,9 @@ export async function getConversationContext() {
 }
 
 export async function saveConversation({ transcript, reply, memory = "" }) {
+    if (isNonConversationalReply(reply)) {
+        throw new Error("El proveedor devolvió una clasificación en lugar de una respuesta de CERCA.");
+    }
     const db = await getDatabase();
     const now = new Date().toISOString();
 
