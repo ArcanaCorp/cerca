@@ -56,10 +56,8 @@ const score = () =>
     Math.floor(Math.random() * 51) + 30;
 
 export function generateFriend(preference, userInterests) {
-    const gender =
-        preference === "random"
-            ? pick(["male", "female"])
-            : preference;
+    
+    const gender = preference === "random" ? pick(["male", "female"]) : preference;
 
     const personality = {
         openness: score(),
@@ -72,24 +70,16 @@ export function generateFriend(preference, userInterests) {
     const name = pick(NAMES[gender]);
 
     // Un interés compartido es posible, pero no obligatorio.
-    const sharedInterest =
-        userInterests.length > 0 && Math.random() > 0.35
-            ? pick(userInterests)
-            : null;
+    const sharedInterest = userInterests.length > 0 && Math.random() > 0.35 ? pick(userInterests) : null;
 
     const independentInterests = [...OWN_INTERESTS]
         .filter((interest) => interest !== sharedInterest)
         .sort(() => Math.random() - 0.5)
         .slice(0, sharedInterest ? 2 : 3);
 
-    const interests = sharedInterest
-        ? [sharedInterest, ...independentInterests]
-        : independentInterests;
+    const interests = sharedInterest ? [sharedInterest, ...independentInterests] : independentInterests;
 
-    const communicationStyle =
-        personality.extraversion >= 60
-            ? "Expresivo y conversador"
-            : "Tranquilo y observador";
+    const communicationStyle = personality.extraversion >= 60 ? "Expresivo y conversador" : "Tranquilo y observador";
 
     return {
         name,
