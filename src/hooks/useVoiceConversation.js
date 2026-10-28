@@ -10,6 +10,7 @@ import {
 import * as Speech from "expo-speech";
 
 import { useApp } from "./useApp";
+import { debugVoice, debugVoiceError } from "../utils/voice-debug";
 import { getConversationContext, saveConversation } from "../services/memory.service";
 import {
     requestVoiceTurn,

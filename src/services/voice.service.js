@@ -1,5 +1,6 @@
 import { File } from "expo-file-system";
 import { debugVoice, debugVoiceError } from "../utils/voice-debug";
+import { isNonConversationalReply } from "../utils/reply-quality";
 
 const MAX_AUDIO_BYTES = 2_500_000;
 
@@ -78,6 +79,12 @@ export async function requestVoiceTurn({ uri, user, companion, context, signal }
 
         if (typeof data.transcript !== "string" || typeof data.reply !== "string") {
             throw new Error("La respuesta del servicio de voz no es válida.");
+        }
+
+        if (isNonConversationalReply(data.reply)) {
+            const error = new Error("OpenRouter devolvió una clasificación de seguridad en lugar de una respuesta. Cambia OPENROUTER_MODEL por un modelo de conversación.");
+            error.code = "non_conversational_model";
+            throw error;
         }
 
         debugVoice("api_result_validated", { transcriptChars: data.transcript.length, replyChars: data.reply.length, hasMemory: Boolean(data.memory) });
