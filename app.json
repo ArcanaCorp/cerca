@@ -34,7 +34,24 @@
         }
       ],
       "expo-sqlite",
-      "expo-audio"
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "CERCA necesita el micrófono para conversar contigo.",
+          "enableBackgroundRecording": false
+        }
+      ],
+      [
+        "react-native-audio-api",
+        {
+          "iosMicrophonePermission": "CERCA necesita el micrófono para la conversación en vivo.",
+          "iosBackgroundMode": false,
+          "androidPermissions": [
+            "android.permission.MODIFY_AUDIO_SETTINGS"
+          ],
+          "androidForegroundService": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

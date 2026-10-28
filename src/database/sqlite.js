@@ -52,7 +52,8 @@ export function getDatabase() {
                 CREATE TABLE IF NOT EXISTS privacy_preferences (
                     id INTEGER PRIMARY KEY NOT NULL,
                     cloud_voice_consent INTEGER NOT NULL DEFAULT 0,
-                    cloud_companion_consent INTEGER NOT NULL DEFAULT 0
+                    cloud_companion_consent INTEGER NOT NULL DEFAULT 0,
+                    gemini_live_consent INTEGER NOT NULL DEFAULT 0
                 );
 
                 CREATE TABLE IF NOT EXISTS app_state (
@@ -66,6 +67,13 @@ export function getDatabase() {
             if (!columns.some(column => column.name === "cloud_companion_consent")) {
                 await db.execAsync(
                     "ALTER TABLE privacy_preferences ADD COLUMN cloud_companion_consent INTEGER NOT NULL DEFAULT 0"
+                );
+            }
+
+            const liveColumns = await db.getAllAsync("PRAGMA table_info(privacy_preferences)");
+            if (!liveColumns.some(column => column.name === "gemini_live_consent")) {
+                await db.execAsync(
+                    "ALTER TABLE privacy_preferences ADD COLUMN gemini_live_consent INTEGER NOT NULL DEFAULT 0"
                 );
             }
 

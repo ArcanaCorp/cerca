@@ -152,3 +152,21 @@ export async function setCompanionConsent(granted) {
         [granted ? 1 : 0]
     );
 }
+
+export async function getGeminiLiveConsent() {
+    const db = await getDatabase();
+    const row = await db.getFirstAsync(
+        "SELECT gemini_live_consent FROM privacy_preferences WHERE id = 1"
+    );
+    return row?.gemini_live_consent === 1;
+}
+
+export async function setGeminiLiveConsent(granted) {
+    const db = await getDatabase();
+    await db.runAsync(
+        `INSERT INTO privacy_preferences (id, gemini_live_consent)
+         VALUES (1, ?)
+         ON CONFLICT(id) DO UPDATE SET gemini_live_consent = excluded.gemini_live_consent`,
+        [granted ? 1 : 0]
+    );
+}

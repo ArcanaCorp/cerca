@@ -9,15 +9,16 @@ import TextApp from "../components/ui/TextApp";
 import Button from "../components/ui/Button";
 import { tokens } from "../styles/tokens";
 import { useApp } from "../hooks/useApp";
-import { useVoiceConversation } from "../hooks/useVoiceConversation";
+import { useLiveConversation } from "../hooks/useLiveConversation";
 
 const COLORS = tokens.colors;
 
 const PHASE_TEXT = {
-    idle: "Toca para hablar",
-    listening: "Te escucho · toca para enviar",
+    idle: "Toca para conversar",
+    connecting: "Conectando con CERCA...",
+    listening: "Te escucho · habla con naturalidad",
     thinking: "Estoy pensando...",
-    speaking: "Estoy hablando · toca para detener",
+    speaking: "Estoy contigo · puedes interrumpirme",
 };
 
 export default function Home() {
@@ -25,7 +26,7 @@ export default function Home() {
     const { width } = useWindowDimensions();
     const { companion: friend } = useApp();
 
-    const { phase, action, busy } = useVoiceConversation();
+    const { phase, action, busy, mode } = useLiveConversation();
     const pulse = useRef(new Animated.Value(1)).current;
     const avatarSize = Math.min(width - 70, 310);
 
@@ -119,7 +120,7 @@ export default function Home() {
                         disabled={busy}
                         accessibilityLabel={
                             listening
-                                ? "Enviar mi voz"
+                                ? (mode === "legacy" ? "Enviar mi voz" : "Finalizar conversación")
                                 : speaking
                                     ? "Detener respuesta"
                                     : "Hablar con mi amigo"
@@ -128,7 +129,9 @@ export default function Home() {
                     />
 
                     <TextApp size="md" color="muted" align="center">
-                        {PHASE_TEXT[phase]}
+                        {mode === "legacy" && phase === "listening"
+                            ? "Grabando · toca para enviar"
+                            : PHASE_TEXT[phase]}
                     </TextApp>
                 </View>
 
