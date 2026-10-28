@@ -106,10 +106,31 @@ export async function resetAllLocalData() {
 
     await db.withExclusiveTransactionAsync(async (txn) => {
         await txn.execAsync(`
+            DELETE FROM conversation_turns;
+            DELETE FROM memory_facts;
+            DELETE FROM privacy_preferences;
             DELETE FROM app_state;
             DELETE FROM companion_profile;
             DELETE FROM companion_preferences;
             DELETE FROM user_profile;
         `);
     });
+}
+
+export async function getVoiceConsent() {
+    const db = await getDatabase();
+    const row = await db.getFirstAsync(
+        "SELECT cloud_voice_consent FROM privacy_preferences WHERE id = 1"
+    );
+    return row?.cloud_voice_consent === 1;
+}
+
+export async function setVoiceConsent(granted) {
+    const db = await getDatabase();
+    await db.runAsync(
+        `INSERT INTO privacy_preferences (id, cloud_voice_consent)
+         VALUES (1, ?)
+         ON CONFLICT(id) DO UPDATE SET cloud_voice_consent = excluded.cloud_voice_consent`,
+        [granted ? 1 : 0]
+    );
 }
