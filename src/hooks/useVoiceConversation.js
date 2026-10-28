@@ -35,11 +35,16 @@ export function useVoiceConversation() {
     const recordingRef = useRef(false);
     const mountedRef = useRef(true);
     const busyRef = useRef(false);
+    const timerRef = useRef(null);
+    const endRef = useRef(null);
+    const networkRef = useRef(null);
 
     useEffect(() => {
         mountedRef.current = true;
         return () => {
             mountedRef.current = false;
+            clearTimeout(timerRef.current);
+            networkRef.current?.abort();
             Speech.stop();
             if (recordingRef.current) recorder.stop().catch(console.error);
         };
@@ -61,7 +66,8 @@ export function useVoiceConversation() {
             });
 
             await recorder.prepareToRecordAsync();
-            recorder.record({ forDuration: MAX_SECONDS });
+            recorder.record();
+            timerRef.current = setTimeout(() => endRef.current?.(), MAX_SECONDS * 1000);
 
             recordingRef.current = true;
             if (mountedRef.current) {
@@ -121,6 +127,7 @@ export function useVoiceConversation() {
     const end = useCallback(async () => {
         if (busyRef.current || !recordingRef.current) return;
         busyRef.current = true;
+        clearTimeout(timerRef.current);
         let uri = null;
 
         try {
@@ -136,12 +143,16 @@ export function useVoiceConversation() {
             if (mountedRef.current) setPhase("thinking");
 
             const context = await getConversationContext();
+            const networkController = new AbortController();
+            networkRef.current = networkController;
             const turn = await requestVoiceTurn({
                 uri,
                 user,
                 companion,
                 context,
+                signal: networkController.signal,
             });
+            networkRef.current = null;
 
             if (!turn.transcript || !turn.reply) {
                 throw new Error("No te escuché bien. Intenta otra vez.");
@@ -178,10 +189,13 @@ export function useVoiceConversation() {
                 Alert.alert("No pudimos conversar", reason.message);
             }
         } finally {
+            networkRef.current = null;
             deleteTemporaryRecording(uri);
             busyRef.current = false;
         }
     }, [recorder, user, companion]);
+
+    endRef.current = end;
 
     const action = useCallback(() => {
         if (phase === "listening") return end();
