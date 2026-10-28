@@ -27,6 +27,8 @@ import Input from "../components/ui/Input";
 import Chip from "../components/ui/Chip";
 import { tokens } from "../styles/tokens";
 import { useApp } from "../hooks/useApp";
+import { getVoiceConsent, setVoiceConsent } from "../services/profile.service";
+import { clearConversationMemory, getMemoryStats } from "../services/memory.service";
 
 const COLORS = tokens.colors;
 
@@ -73,14 +75,24 @@ export default function Settings() {
 
     const friendName = companion?.name ?? "";
     const [micGranted, setMicGranted] = useState(false);
+    const [voiceConsent, setVoiceConsentState] = useState(false);
+    const [memoryStats, setMemoryStats] = useState({ turns: 0, facts: 0 });
+    const [clearingMemory, setClearingMemory] = useState(false);
 
     useEffect(() => {
         let active = true;
-        AudioModule.getRecordingPermissionsAsync()
-            .then((permission) => {
-                if (active) setMicGranted(permission.granted);
+        Promise.all([
+            AudioModule.getRecordingPermissionsAsync(),
+            getVoiceConsent(),
+            getMemoryStats(),
+        ])
+            .then(([permission, consent, stats]) => {
+                if (!active) return;
+                setMicGranted(permission.granted);
+                setVoiceConsentState(consent);
+                setMemoryStats(stats);
             })
-            .catch((error) => console.error("Error consultando micrófono:", error))
+            .catch((error) => console.error("Error cargando privacidad:", error))
             .finally(() => { if (active) setLoading(false); });
         return () => { active = false; };
     }, []);
@@ -199,10 +211,49 @@ export default function Settings() {
         }
     };
 
+    const forgetConversation = () => {
+        Alert.alert(
+            "¿Borrar la memoria de CERCA?",
+            "Se eliminarán los mensajes transcritos y los recuerdos que le pediste guardar. Tu perfil y tu compañero seguirán intactos.",
+            [
+                { text: "Cancelar", style: "cancel" },
+                {
+                    text: "Borrar memoria",
+                    style: "destructive",
+                    onPress: async () => {
+                        try {
+                            setClearingMemory(true);
+                            await clearConversationMemory();
+                            setMemoryStats({ turns: 0, facts: 0 });
+                            Alert.alert("Memoria borrada", "CERCA ya no tendrá esos recuerdos.");
+                        } catch (error) {
+                            Alert.alert("Error", "No pudimos borrar la memoria.");
+                        } finally {
+                            setClearingMemory(false);
+                        }
+                    },
+                },
+            ]
+        );
+    };
+
+    const revokeVoiceConsent = async () => {
+        try {
+            await setVoiceConsent(false);
+            setVoiceConsentState(false);
+            Alert.alert(
+                "Permiso de IA revocado",
+                "CERCA volverá a pedirte autorización antes de enviar audio al servicio."
+            );
+        } catch (error) {
+            Alert.alert("Error", "No pudimos actualizar tu autorización.");
+        }
+    };
+
     const deleteAllData = () => {
         Alert.alert(
             "¿Empezar de nuevo?",
-            `Esto eliminará tu perfil, la identidad de ${friendName || "tu compañero"} y los datos de CERCA guardados actualmente en su base local. No podrás recuperarlos.`,
+            `Esto eliminará tu perfil, los recuerdos, las conversaciones y la identidad de ${friendName || "tu compañero"} y los datos de CERCA guardados actualmente en su base local. No podrás recuperarlos.`,
             [
                 {
                     text: "Cancelar",
@@ -504,9 +555,9 @@ export default function Settings() {
                                 color="muted"
                                 style={styles.privacyText}
                             >
-                                Tu perfil y la identidad de tu compañero
-                                se guardan en SQLite, dentro de este
-                                dispositivo.
+                                Tu perfil, los mensajes transcritos, la identidad
+                                y los recuerdos de tu compañero se guardan
+                                en SQLite en este dispositivo.
                             </TextApp>
 
                             <TextApp
@@ -514,11 +565,39 @@ export default function Settings() {
                                 color="muted"
                                 style={styles.privacyText}
                             >
-                                La base de datos aún no está cifrada.
-                                La conexión futura con IA de voz tendrá
-                                su propia configuración de privacidad.
+                                La base aún no está cifrada. Al hablar con IA,
+                                se envían audio y contexto al servicio externo
+                                para generar respuestas. No se guardan audios
+                                permanentes en CERCA.
                             </TextApp>
                         </View>
+                    </View>
+
+                    <View style={styles.card}>
+                        <TextApp size="lg" weight="semibold">
+                            Memoria de CERCA
+                        </TextApp>
+                        <TextApp color="muted">
+                            {memoryStats.facts} recuerdos · {memoryStats.turns} mensajes guardados.
+                        </TextApp>
+
+                        <Button
+                            variant="secondary"
+                            label={clearingMemory ? "Borrando..." : "Olvidar conversaciones y recuerdos"}
+                            icon={<Trash2 size={18} />}
+                            disabled={clearingMemory}
+                            fullWidth
+                            onPress={forgetConversation}
+                        />
+
+                        {voiceConsent && (
+                            <Button
+                                variant="ghost"
+                                label="Revocar autorización de voz con IA"
+                                fullWidth
+                                onPress={revokeVoiceConsent}
+                            />
+                        )}
                     </View>
                 </View>
 
@@ -546,7 +625,7 @@ export default function Settings() {
                             style={styles.descriptionSmall}
                         >
                             Eliminarás tu perfil, la identidad de
-                            tu compañero y las preferencias guardadas.
+                            tu compañero, las conversaciones, los recuerdos y las preferencias guardadas.
                             Tendrás que completar nuevamente el onboarding.
                         </TextApp>
 
