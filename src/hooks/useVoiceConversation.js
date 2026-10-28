@@ -89,6 +89,14 @@ export function useVoiceConversation() {
     const begin = useCallback(async () => {
         if (busyRef.current || phase !== "idle") return;
 
+        if (!process.env.EXPO_PUBLIC_CERCA_API_URL?.startsWith("https://")) {
+            Alert.alert(
+                "Servicio de voz sin configurar",
+                "Configura EXPO_PUBLIC_CERCA_API_URL para hablar con tu compañero."
+            );
+            return;
+        }
+
         try {
             const consent = await getVoiceConsent();
             if (consent) {
