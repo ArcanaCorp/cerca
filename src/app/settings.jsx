@@ -32,6 +32,8 @@ import {
     setVoiceConsent,
     getCompanionConsent,
     setCompanionConsent,
+    getGeminiLiveConsent,
+    setGeminiLiveConsent,
 } from "../services/profile.service";
 import { clearConversationMemory, getMemoryStats } from "../services/memory.service";
 
@@ -81,6 +83,7 @@ export default function Settings() {
     const friendName = companion?.name ?? "";
     const [micGranted, setMicGranted] = useState(false);
     const [voiceConsent, setVoiceConsentState] = useState(false);
+    const [liveConsent, setLiveConsentState] = useState(false);
     const [companionConsent, setCompanionConsentState] = useState(false);
     const [memoryStats, setMemoryStats] = useState({ turns: 0, facts: 0 });
     const [clearingMemory, setClearingMemory] = useState(false);
@@ -92,12 +95,14 @@ export default function Settings() {
             getVoiceConsent(),
             getMemoryStats(),
             getCompanionConsent(),
+            getGeminiLiveConsent(),
         ])
-            .then(([permission, consent, stats, friendConsent]) => {
+            .then(([permission, consent, stats, friendConsent, geminiConsent]) => {
                 if (!active) return;
                 setMicGranted(permission.granted);
                 setVoiceConsentState(consent);
                 setCompanionConsentState(friendConsent);
+                setLiveConsentState(geminiConsent);
                 setMemoryStats(stats);
             })
             .catch((error) => console.error("Error cargando privacidad:", error))
@@ -252,6 +257,16 @@ export default function Settings() {
             Alert.alert("Autorización revocada", "CERCA no solicitará generar identidades nuevas sin pedir autorización.");
         } catch (error) {
             Alert.alert("Error", "No pudimos actualizar tu autorización.");
+        }
+    };
+
+    const revokeLiveConsent = async () => {
+        try {
+            await setGeminiLiveConsent(false);
+            setLiveConsentState(false);
+            Alert.alert("Autorización revocada", "CERCA solicitará una nueva autorización antes de iniciar Gemini Live.");
+        } catch (reason) {
+            Alert.alert("Error", "No pudimos actualizar esta autorización.");
         }
     };
 
@@ -614,6 +629,15 @@ export default function Settings() {
                                 label="Revocar autorización de creación con IA"
                                 fullWidth
                                 onPress={revokeCompanionConsent}
+                            />
+                        )}
+
+                        {liveConsent && (
+                            <Button
+                                variant="ghost"
+                                label="Revocar autorización de Gemini Live"
+                                fullWidth
+                                onPress={revokeLiveConsent}
                             />
                         )}
 
