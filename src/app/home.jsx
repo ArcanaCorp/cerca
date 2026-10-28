@@ -1,157 +1,74 @@
-import { useEffect, useRef, useState } from "react";
-import { View, StyleSheet, Animated, Alert, useWindowDimensions } from "react-native";
+import { useEffect, useRef } from "react";
+import { View, StyleSheet, Animated, ActivityIndicator, useWindowDimensions } from "react-native";
 import { useRouter } from "expo-router";
-import { Settings2, Mic, Square } from "lucide-react-native";
+import { Settings2, Mic, Square, VolumeX, Sparkles } from "lucide-react-native";
 import { Blobatar } from "@blobatar/react-native";
-
-import { AudioModule, RecordingPresets, setAudioModeAsync, useAudioRecorder, useAudioRecorderState } from "expo-audio";
-
 
 import Screen from "../components/ui/Screen";
 import TextApp from "../components/ui/TextApp";
 import Button from "../components/ui/Button";
 import { tokens } from "../styles/tokens";
 import { useApp } from "../hooks/useApp";
+import { useVoiceConversation } from "../hooks/useVoiceConversation";
 
 const COLORS = tokens.colors;
+
+const PHASE_TEXT = {
+    idle: "Toca para hablar",
+    listening: "Te escucho · toca para enviar",
+    thinking: "Estoy pensando...",
+    speaking: "Estoy hablando · toca para detener",
+};
 
 export default function Home() {
     const router = useRouter();
     const { width } = useWindowDimensions();
-
     const { companion: friend } = useApp();
-    const [busy, setBusy] = useState(false);
-    const [recordingCompleted, setRecordingCompleted] = useState(false);
 
-    const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
-    const recorderState = useAudioRecorderState(recorder);
-
-    const isListening = recorderState.isRecording;
-
+    const { phase, action, busy } = useVoiceConversation();
     const pulse = useRef(new Animated.Value(1)).current;
-    const recordingRef = useRef(false);
+    const avatarSize = Math.min(width - 70, 310);
 
-    const avatarSize = Math.min(width - 80, 300);
-
-    // Mantener la grabación contenida en el ciclo de vida de Home.
-    useEffect(() => () => {
-        if (recordingRef.current) {
-            recorder.stop().catch(console.error);
-            recordingRef.current = false;
-        }
-    }, [recorder]);
-
-    // Animación suave del avatar
     useEffect(() => {
+        const active = phase !== "idle";
         const animation = Animated.loop(
             Animated.sequence([
                 Animated.timing(pulse, {
-                    toValue: isListening ? 1.065 : 1.025,
-                    duration: isListening ? 600 : 1800,
+                    toValue: active ? 1.075 : 1.025,
+                    duration: active ? 650 : 1700,
                     useNativeDriver: true,
                 }),
                 Animated.timing(pulse, {
                     toValue: 1,
-                    duration: isListening ? 600 : 1800,
+                    duration: active ? 650 : 1700,
                     useNativeDriver: true,
                 }),
             ])
         );
 
         animation.start();
-
         return () => animation.stop();
-    }, [isListening, pulse]);
-
-    const startListening = async () => {
-        if (busy) return;
-
-        try {
-            setBusy(true);
-
-            const permission =
-                await AudioModule.requestRecordingPermissionsAsync();
-
-            if (!permission.granted) {
-                Alert.alert(
-                    "Permiso necesario",
-                    "Permite el uso del micrófono para hablar con CERCA."
-                );
-                return;
-            }
-
-            await setAudioModeAsync({
-                allowsRecording: true,
-                playsInSilentMode: true,
-            });
-
-            await recorder.prepareToRecordAsync();
-            await recorder.record();
-
-            recordingRef.current = true;
-            setRecordingCompleted(false);
-
-        } catch (error) {
-            console.error("Error de grabación:", error);
-
-            Alert.alert(
-                "Micrófono no disponible",
-                "No pudimos comenzar la grabación."
-            );
-        } finally {
-            setBusy(false);
-        }
-    };
-
-    const stopListening = async () => {
-        if (busy) return;
-
-        try {
-            setBusy(true);
-
-            await recorder.stop();
-
-            recordingRef.current = false;
-            setRecordingCompleted(true);
-
-            await setAudioModeAsync({
-                allowsRecording: false,
-                playsInSilentMode: true,
-            });
-
-        } catch (error) {
-            console.error("Error deteniendo grabación:", error);
-
-            Alert.alert(
-                "Error",
-                "No pudimos detener la grabación."
-            );
-        } finally {
-            setBusy(false);
-        }
-    };
+    }, [phase, pulse]);
 
     if (!friend) {
         return (
             <Screen>
                 <View style={styles.loading}>
-                    <TextApp color="muted">
-                        Un momento...
-                    </TextApp>
+                    <TextApp color="muted">Un momento...</TextApp>
                 </View>
             </Screen>
         );
     }
 
+    const listening = phase === "listening";
+    const speaking = phase === "speaking";
+
     return (
         <Screen>
             <View style={styles.container}>
 
-                {/* Encabezado minimalista */}
                 <View style={styles.header}>
-                    <TextApp size="xl" weight="bold">
-                        cerca.
-                    </TextApp>
+                    <TextApp size="xl" weight="bold">cerca.</TextApp>
 
                     <Button
                         variant="ghost"
@@ -162,7 +79,6 @@ export default function Home() {
                     />
                 </View>
 
-                {/* Compañero */}
                 <View style={styles.companion}>
                     <Animated.View
                         style={[
@@ -174,74 +90,45 @@ export default function Home() {
                             },
                         ]}
                     >
-                        <Blobatar
-                            name={friend.name}
-                            size={avatarSize}
-                        />
+                        <Blobatar name={friend.name} size={avatarSize} />
                     </Animated.View>
 
-                    <TextApp
-                        size="4xl"
-                        weight="semibold"
-                        align="center"
-                    >
+                    <TextApp size="4xl" weight="semibold" align="center">
                         {friend.name}
                     </TextApp>
-
-                    {isListening && (
-                        <View style={styles.status}>
-                            <View style={styles.statusDot} />
-
-                            <TextApp
-                                size="md"
-                                color="muted"
-                            >
-                                Grabando tu voz...
-                            </TextApp>
-                        </View>
-                    )}
                 </View>
 
-                {/* Control principal */}
                 <View style={styles.controls}>
                     <Button
-                        variant={
-                            isListening
-                                ? "destructive"
-                                : "primary"
-                        }
+                        variant={listening ? "destructive" : "primary"}
                         rounded="full"
                         size="lg"
                         icon={
-                            isListening
-                                ? <Square size={27} fill={COLORS.white} />
-                                : <Mic size={32} />
+                            busy
+                                ? <ActivityIndicator color={COLORS.black} />
+                                : listening
+                                    ? <Square size={27} fill={COLORS.white} />
+                                    : speaking
+                                        ? <VolumeX size={30} />
+                                        : phase === "thinking"
+                                            ? <Sparkles size={30} />
+                                            : <Mic size={32} />
                         }
                         iconOnly
                         style={styles.micButton}
                         disabled={busy}
                         accessibilityLabel={
-                            isListening
-                                ? "Detener grabación"
-                                : "Empezar a grabar"
+                            listening
+                                ? "Enviar mi voz"
+                                : speaking
+                                    ? "Detener respuesta"
+                                    : "Hablar con mi amigo"
                         }
-                        onPress={
-                            isListening
-                                ? stopListening
-                                : startListening
-                        }
+                        onPress={action}
                     />
 
-                    <TextApp
-                        size="md"
-                        color="muted"
-                        align="center"
-                    >
-                        {isListening
-                            ? "Toca para terminar"
-                            : recordingCompleted
-                                ? "Grabación finalizada"
-                                : "Toca para hablar"}
+                    <TextApp size="md" color="muted" align="center">
+                        {PHASE_TEXT[phase]}
                     </TextApp>
                 </View>
 
@@ -275,25 +162,12 @@ const styles = StyleSheet.create({
         alignItems: "center",
         justifyContent: "center",
         gap: 18,
-        paddingVertical: 36,
+        paddingVertical: 28,
     },
 
     avatar: {
         alignItems: "center",
         justifyContent: "center",
-    },
-
-    status: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 8,
-    },
-
-    statusDot: {
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-        backgroundColor: COLORS.red,
     },
 
     controls: {
