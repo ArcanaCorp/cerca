@@ -1,5 +1,6 @@
 import { getDatabase } from "../database/sqlite";
 import { mapCompanion, getCompanionConsent } from "./profile.service";
+import { debugVoice, debugVoiceError } from "../utils/voice-debug";
 
 let creationPromise = null;
 
@@ -41,6 +42,7 @@ async function generateFromAI(preference, user) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 45000);
     try {
+        debugVoice("companion_api_request", { preference, interestCount: user.interests.length });
         const response = await fetch(getApiUrl(), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -51,9 +53,18 @@ async function generateFromAI(preference, user) {
             signal: controller.signal,
         });
         const data = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(data.error || "No pudimos generar a tu compañero.");
+        const requestId = response.headers?.get?.("X-CERCA-Request-ID") || data.requestId || null;
+        debugVoice("companion_api_response", { status: response.status, code: data.code || null, requestId });
+        if (!response.ok) {
+            const error = new Error(data.error || "No pudimos generar a tu compañero.");
+            error.status = response.status;
+            error.code = data.code || "unknown_error";
+            error.requestId = requestId;
+            throw error;
+        }
         return validateIdentity(data, preference);
     } catch (error) {
+        debugVoiceError("companion_api_failed", error);
         if (error.name === "AbortError") throw new Error("La IA tardó demasiado. Intenta nuevamente.");
         throw error;
     } finally {
