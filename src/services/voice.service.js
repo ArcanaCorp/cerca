@@ -13,7 +13,7 @@ function apiEndpoint() {
 }
 
 // No almacena el audio en servidor: solo envía el archivo temporal de la grabación.
-export async function requestVoiceTurn({ uri, user, companion, context }) {
+export async function requestVoiceTurn({ uri, user, companion, context, signal }) {
     if (!uri) throw new Error("No se encontró la grabación de voz.");
 
     const file = new File(uri);
@@ -26,6 +26,9 @@ export async function requestVoiceTurn({ uri, user, companion, context }) {
 
     const audio = await file.base64();
     const controller = new AbortController();
+    const cancel = () => controller.abort();
+    if (signal?.aborted) controller.abort();
+    signal?.addEventListener("abort", cancel, { once: true });
     const timeout = setTimeout(() => controller.abort(), 45000);
 
     try {
@@ -76,6 +79,7 @@ export async function requestVoiceTurn({ uri, user, companion, context }) {
         throw error;
     } finally {
         clearTimeout(timeout);
+        signal?.removeEventListener("abort", cancel);
     }
 }
 
