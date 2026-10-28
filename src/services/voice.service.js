@@ -1,4 +1,5 @@
 import { File } from "expo-file-system";
+import { debugVoice, debugVoiceError } from "../utils/voice-debug";
 
 const MAX_AUDIO_BYTES = 2_500_000;
 
@@ -24,6 +25,7 @@ export async function requestVoiceTurn({ uri, user, companion, context, signal }
         throw new Error("Audio demasiado largo. Usa mensajes de hasta 20 segundos.");
     }
 
+    debugVoice("audio_file_validated", { bytes: file.size });
     const audio = await file.base64();
     const controller = new AbortController();
     const cancel = () => controller.abort();
@@ -32,6 +34,8 @@ export async function requestVoiceTurn({ uri, user, companion, context, signal }
     const timeout = setTimeout(() => controller.abort(), 45000);
 
     try {
+        const sentAt = Date.now();
+        debugVoice("api_request_start", { audioBytes: file.size, historyCount: context.history.length, memoryCount: context.memories.length });
         const response = await fetch(apiEndpoint(), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -58,21 +62,32 @@ export async function requestVoiceTurn({ uri, user, companion, context, signal }
         });
 
         const data = await response.json().catch(() => ({}));
+        const requestId = response.headers?.get?.("X-CERCA-Request-ID") || data.requestId || null;
+        debugVoice("api_response", {
+            status: response.status, code: data.code || null, requestId,
+            elapsedMs: Date.now() - sentAt,
+        });
 
         if (!response.ok) {
-            throw new Error(data.error || "No pudimos procesar tu voz en este momento.");
+            const error = new Error(data.error || "No pudimos procesar tu voz en este momento.");
+            error.status = response.status;
+            error.code = data.code || "unknown_error";
+            error.requestId = requestId;
+            throw error;
         }
 
         if (typeof data.transcript !== "string" || typeof data.reply !== "string") {
             throw new Error("La respuesta del servicio de voz no es válida.");
         }
 
+        debugVoice("api_result_validated", { transcriptChars: data.transcript.length, replyChars: data.reply.length, hasMemory: Boolean(data.memory) });
         return {
             transcript: data.transcript.trim(),
             reply: data.reply.trim(),
             memory: typeof data.memory === "string" ? data.memory : "",
         };
     } catch (error) {
+        debugVoiceError("api_request_failed", error);
         if (error.name === "AbortError") {
             throw new Error("La respuesta tardó demasiado. Vuelve a intentarlo.");
         }

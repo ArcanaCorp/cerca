@@ -53,9 +53,11 @@ export function useVoiceConversation() {
     const startRecording = useCallback(async () => {
         if (busyRef.current || !user || !companion) return;
         busyRef.current = true;
+        debugVoice("recording_permission_request");
 
         try {
             const permission = await AudioModule.requestRecordingPermissionsAsync();
+            debugVoice("recording_permission_result", { granted: permission.granted });
             if (!permission.granted) {
                 throw new Error("Activa el permiso de micrófono para conversar.");
             }
@@ -67,6 +69,7 @@ export function useVoiceConversation() {
 
             await recorder.prepareToRecordAsync();
             recorder.record();
+            debugVoice("recording_started", { maxSeconds: MAX_SECONDS });
             timerRef.current = setTimeout(() => endRef.current?.(), MAX_SECONDS * 1000);
 
             recordingRef.current = true;
@@ -76,6 +79,7 @@ export function useVoiceConversation() {
                 setPhase("listening");
             }
         } catch (reason) {
+            debugVoiceError("recording_start_failed", reason);
             if (mountedRef.current) {
                 setError(reason.message);
                 setPhase("idle");
@@ -97,8 +101,10 @@ export function useVoiceConversation() {
             return;
         }
 
+        debugVoice("conversation_begin", { configuredApi: true });
         try {
             const consent = await getVoiceConsent();
+            debugVoice("cloud_voice_consent_checked", { consent });
             if (consent) {
                 await startRecording();
                 return;
@@ -135,6 +141,7 @@ export function useVoiceConversation() {
     const end = useCallback(async () => {
         if (busyRef.current || !recordingRef.current) return;
         busyRef.current = true;
+        debugVoice("recording_stop_requested");
         clearTimeout(timerRef.current);
         let uri = null;
 
@@ -143,6 +150,7 @@ export function useVoiceConversation() {
             await recorder.stop();
             recordingRef.current = false;
             uri = recorder.uri;
+            debugVoice("recording_stopped", { hasUri: Boolean(uri) });
 
             await setAudioModeAsync({
                 allowsRecording: false,
@@ -151,6 +159,7 @@ export function useVoiceConversation() {
             if (mountedRef.current) setPhase("thinking");
 
             const context = await getConversationContext();
+            debugVoice("local_context_loaded", { historyCount: context.history.length, memoryCount: context.memories.length });
             const networkController = new AbortController();
             networkRef.current = networkController;
             const turn = await requestVoiceTurn({
@@ -161,12 +170,14 @@ export function useVoiceConversation() {
                 signal: networkController.signal,
             });
             networkRef.current = null;
+            debugVoice("voice_response_received", { transcriptChars: turn.transcript?.length || 0, replyChars: turn.reply?.length || 0 });
 
             if (!turn.transcript || !turn.reply) {
                 throw new Error("No te escuché bien. Intenta otra vez.");
             }
 
             await saveConversation(turn);
+            debugVoice("conversation_saved");
 
             if (!mountedRef.current) return;
 
@@ -174,10 +185,12 @@ export function useVoiceConversation() {
             setError(null);
             setPhase("speaking");
 
+            debugVoice("speech_start", { replyChars: turn.reply.length });
             Speech.speak(turn.reply, {
                 language: user.language === "en" ? "en-US" : "es-PE",
                 rate: 0.96,
                 onDone: () => {
+                    debugVoice("speech_completed");
                     if (mountedRef.current) setPhase("idle");
                 },
                 onStopped: () => {
@@ -191,6 +204,7 @@ export function useVoiceConversation() {
                 },
             });
         } catch (reason) {
+            debugVoiceError("conversation_failed", reason);
             if (mountedRef.current) {
                 setPhase("idle");
                 setError(reason.message);
@@ -199,6 +213,7 @@ export function useVoiceConversation() {
         } finally {
             networkRef.current = null;
             deleteTemporaryRecording(uri);
+            debugVoice("temporary_recording_deleted", { hadUri: Boolean(uri) });
             busyRef.current = false;
         }
     }, [recorder, user, companion]);
